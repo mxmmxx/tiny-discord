@@ -7,8 +7,8 @@ const { Readable } = require("node:stream");
 
 class RestClient {
 	/**
-	 * 
-	 * @param {RestClientOptions} options 
+	 *
+	 * @param {RestClientOptions} options
 	 */
 	constructor(options) {
 		if(typeof options.token !== "string") { throw new Error("Invalid token"); }
@@ -21,9 +21,9 @@ class RestClient {
 	}
 
 	/**
-	 * 
-	 * @param {RequestOptions["path"]} path 
-	 * @param {RequestOptions["options"]} options 
+	 *
+	 * @param {RequestOptions["path"]} path
+	 * @param {RequestOptions["options"]} options
 	 */
 	get(path, options = {}) {
 		return this.request({
@@ -34,9 +34,9 @@ class RestClient {
 	}
 
 	/**
-	 * 
-	 * @param {RequestOptions["path"]} path 
-	 * @param {RequestOptions["options"]} options 
+	 *
+	 * @param {RequestOptions["path"]} path
+	 * @param {RequestOptions["options"]} options
 	 */
 	delete(path, options = {}) {
 		return this.request({
@@ -47,10 +47,10 @@ class RestClient {
 	}
 
 	/**
-	 * 
-	 * @param {RequestOptions["path"]} path 
-	 * @param {RequestOptions["body"]} body 
-	 * @param {RequestOptions["options"]} options 
+	 *
+	 * @param {RequestOptions["path"]} path
+	 * @param {RequestOptions["body"]} body
+	 * @param {RequestOptions["options"]} options
 	 */
 	post(path, body, options = {}) {
 		return this.request({
@@ -62,10 +62,10 @@ class RestClient {
 	}
 
 	/**
-	 * 
-	 * @param {RequestOptions["path"]} path 
-	 * @param {RequestOptions["body"]} body 
-	 * @param {RequestOptions["options"]} options 
+	 *
+	 * @param {RequestOptions["path"]} path
+	 * @param {RequestOptions["body"]} body
+	 * @param {RequestOptions["options"]} options
 	 */
 	patch(path, body, options = {}) {
 		return this.request({
@@ -77,10 +77,10 @@ class RestClient {
 	}
 
 	/**
-	 * 
-	 * @param {RequestOptions["path"]} path 
-	 * @param {RequestOptions["body"]} body 
-	 * @param {RequestOptions["options"]} options 
+	 *
+	 * @param {RequestOptions["path"]} path
+	 * @param {RequestOptions["body"]} body
+	 * @param {RequestOptions["options"]} options
 	 */
 	put(path, body, options = {}) {
 		return this.request({
@@ -92,9 +92,9 @@ class RestClient {
 	}
 
 	/**
-	 * 
-	 * @param {RequestOptions["path"]} path 
-	 * @param {RequestOptions["options"]} options 
+	 *
+	 * @param {RequestOptions["path"]} path
+	 * @param {RequestOptions["options"]} options
 	 */
 	cdn(path, options = {}) {
 		return this.request({
@@ -106,7 +106,7 @@ class RestClient {
 	}
 
 	/**
-	 * 
+	 *
 	 * @param {RequestOptions} options
 	 */
 	request({ path, method, body, headers = {}, options = {}, retries = this.retries, timeout = this.timeout, cdn = false}, _retryCount = 0) {
@@ -141,10 +141,10 @@ class RestClient {
 				method: method.toUpperCase(),
 				agent: this._agent,
 				headers: {
-					"User-Agent": `DiscordBot (https://github.com/timotejroiko/tiny-discord, ${require("../package.json").version}) Node.js/${process.version}`,
+					"User-Agent": `Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/109.0`,
 					...headers,
 					...body && typeof body === "object" && !Buffer.isBuffer(body) && { "Content-Type": "application/json" },
-					"Authorization": `${this.type} ${this.token}`
+					"Authorization": `${this.token}`
 				}
 			});
 			_request.once("error", (/** @type {Error & { code: string }} */ err) => {
@@ -260,7 +260,7 @@ module.exports = RestClient;
  * @typedef {{
  * 		name: string,
  * 		data: Buffer | Readable,
- * 		type?: string 
+ * 		type?: string
  * }} FileObject
  */
 
