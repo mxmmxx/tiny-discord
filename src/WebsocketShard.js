@@ -57,7 +57,7 @@ class WebsocketShard extends EventEmitter {
 		/** @private */ this._timers = {
 			/** @type {(NodeJS.Timeout & { count: number, until: number })?} */ ratelimit: null,
 			/** @type {(NodeJS.Timeout & { count: number, until: number })?} */ presencelimit: null,
-			/** @type {(NodeJS.Timeout | NodeJS.Timer)?} */ heartbeat: null,
+			/** @type {NodeJS.Timeout?} */ heartbeat: null,
 			/** @type {NodeJS.Timeout?} */ close: null,
 			/** @type {NodeJS.Timeout?} */ offline: null
 		};
@@ -79,6 +79,7 @@ class WebsocketShard extends EventEmitter {
 		/** @private @type {Record<string, { resolve: () => void, state: Record<string, any>?, server: Record<string, any>? }>} */ this._voiceChunks = {};
 		/** @private @type {zlib?} */ this._zlib = null;
 		/** @private @type {import("net").Socket?} */ this._socket = null;
+		/** @private @type {{ opcode: number, buffers: Buffer[] }} */ this._wsFragments = { opcode:0, buffers: [] };
 
 		/**
 		 * @type {(
@@ -631,12 +632,27 @@ class WebsocketShard extends EventEmitter {
 				if(socket.readableLength < 2 + bytes) { return; }
 				length = readRange(socket, 2, bytes);
 			}
-			const frame = socket.read(2 + bytes + length);
-			if(!frame) { return; }
+			const frameSize = 2 + bytes + length;
+			/** @type {Buffer | null} */ const frame = socket.read(frameSize);
+			if(!frame || frame.length !== frameSize) { return; }
 			const fin = frame[0] >> 7;
-			const opcode = frame[0] & 15;
-			if(fin !== 1 || opcode === 0) {	throw new Error("discord actually does send messages with fin=0. if you see this error let me know"); }
-			const payload = frame.slice(2 + bytes);
+			let opcode = frame[0] & 15;
+			let payload = frame.subarray(2 + bytes);
+			if(fin === 0) {
+				this._wsFragments.buffers.push(payload);
+				if(opcode > 0) {
+					this._wsFragments.opcode = opcode;
+				}
+				return;
+			}
+			if(opcode === 0) {
+				const frag = this._wsFragments;
+				frag.buffers.push(payload);
+				payload = Buffer.concat(frag.buffers);
+				opcode = frag.opcode;
+				frag.buffers = [];
+				frag.opcode = 0;
+			}
 			this._processFrame(opcode, payload);
 		}
 	}
@@ -705,7 +721,6 @@ class WebsocketShard extends EventEmitter {
 					this._initClose(4099, true);
 					return;
 				}
-				
 			}
 			if(this.disabledEvents !== null) {
 				const ev = this.encoding === "json" ? peekJSON(data) : peekETF(data);
@@ -883,21 +898,38 @@ function isValidRequest(value) {
  */
 function readRange(socket, index, bytes) {
 	// @ts-expect-error _readableState is private / not typed
-	let head = socket._readableState.buffer.head;
+	const readable = socket._readableState;
 	let cursor = 0;
 	let read = 0;
 	let num = 0;
-	do {
-		for(let i = 0; i < head.data.length; i++) {
-			if(++cursor > index) {
-				num *= 256;
-				num += head.data[i];
-				if(++read === bytes) {
-					return num;
+	if("bufferIndex" in readable) { // node 20+
+		let blockIndex = readable.bufferIndex;
+		let block = readable.buffer[blockIndex];
+		do {
+			for(let i = 0; i < block.length; i++) {
+				if(++cursor > index) {
+					num *= 256;
+					num += block[i];
+					if(++read === bytes) {
+						return num;
+					}
 				}
 			}
-		}
-	} while((head = head.next));
+		} while((block = readable.buffer[++blockIndex]));
+	} else {
+		let head = readable.buffer.head;
+		do {
+			for(let i = 0; i < head.data.length; i++) {
+				if(++cursor > index) {
+					num *= 256;
+					num += head.data[i];
+					if(++read === bytes) {
+						return num;
+					}
+				}
+			}
+		} while((head = head.next));
+	}
 	throw new Error("readRange failed?");
 }
 
@@ -911,6 +943,11 @@ function readETF(data, useBigint = false) {
 	/** @type {() => any} */ const loop = () => {
 		const type = data[x++];
 		switch(type) {
+			case 70: { // new float
+				const float = data.readDoubleBE(x);
+				x += 8;
+				return float;
+			}
 			case 97: { // small int
 				return data[x++];
 			}
